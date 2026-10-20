@@ -39,9 +39,13 @@ inline uint16_t median(const Pyramid& p, uint32_t target) noexcept {
     return static_cast<uint16_t>((t << SHIFT) | b);
 }
 
-void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& dst,
-                                  int radius, int row_begin, int row_end)
+void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
+                           int radius, int row_begin, int row_end)
 {
+    assert(radius > 4 && radius <= 64);
+    assert(src.cols() % 32 == 0);
+    assert(row_begin >= 0 && row_end <= src.rows() && row_begin < row_end);
+
     const auto rows = src.rows(), cols = src.cols();
     const auto rows_1 = rows - 1, cols_1 = cols - 1;
     const auto diam = 2 * radius + 1;
@@ -160,12 +164,3 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
 }
 
 } // namespace
-
-void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
-                           int radius, int row_begin, int row_end)
-{
-    assert(radius > 4 && radius <= 64);
-    assert(src.cols() % 32 == 0);
-    assert(row_begin >= 0 && row_end <= src.rows() && row_begin < row_end);
-    median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
-}
