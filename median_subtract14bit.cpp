@@ -206,7 +206,7 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     const auto rows_1 = rows - 1, cols_1 = cols - 1;
     const auto diam = 2 * radius + 1;
     const auto target = static_cast<uint32_t>(diam) * diam / 2;
-    const auto edge = (radius + 7) & ~7;
+    const auto edge = (radius + 1 + 7) & ~7;   // >= radius+1, multiple of 8
 
     assert(edge >= radius && edge % 8 == 0);
     assert((cols - 2 * edge) % 8 == 0);
@@ -291,11 +291,8 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
                 emit(col);
             }
             for (auto col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
-                // only use raw-index interior when both columns are inside the image
-                if (row_interior && oc >= 0 && oc < cols && nc >= 0 && nc < cols)
-                    slide_interior(row, oc, nc);
-                else
-                    slide_edge(row, oc, nc);
+                if (row_interior) slide_interior(row, oc, nc);
+                else              slide_edge(row, oc, nc);
                 emit(col);
             }
             for (auto col = edge - 1; col >= 0; --col, --oc, --nc) {
