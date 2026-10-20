@@ -31,7 +31,9 @@ constexpr int RADIUS_THRESHOLD = 32;
 constexpr int ALGO_SELECT = 1;
 
 // 1 = flat histogram, 2 = two-level, 3 = three-level
-constexpr int PYRAMID_LEVELS = 3;
+#ifndef PYRAMID_LEVELS
+#define PYRAMID_LEVELS 3
+#endif
 
 namespace {
 
@@ -289,8 +291,11 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
                 emit(col);
             }
             for (auto col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
-                if (row_interior) slide_interior(row, oc, nc);
-                else              slide_edge(row, oc, nc);
+                // only use raw-index interior when both columns are inside the image
+                if (row_interior && oc >= 0 && oc < cols && nc >= 0 && nc < cols)
+                    slide_interior(row, oc, nc);
+                else
+                    slide_edge(row, oc, nc);
                 emit(col);
             }
             for (auto col = edge - 1; col >= 0; --col, --oc, --nc) {
