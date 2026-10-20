@@ -108,8 +108,6 @@ inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept 
     return static_cast<uint16_t>((b1 << (S2 + S3)) | (b2 << S3) | b3);
 }
 
-} // namespace
-
 // ---------- original-style sliding histogram (reference from starting images) ----------
 void median_subtract14bit_original(const Image<uint16_t>& src, Image<uint16_t>& dst,
                                    int radius, int row_begin, int row_end)
@@ -173,8 +171,6 @@ void median_subtract14bit_original(const Image<uint16_t>& src, Image<uint16_t>& 
         dir = -dir;
     }
 }
-
-namespace {
 
 // ---------- sliding-diameter column pyramids (templated) ----------
 template<int Radius>
