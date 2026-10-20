@@ -30,7 +30,7 @@ inline void dec(Pyramid& p, uint16_t v) noexcept {
     --p.bot[(v >> SHIFT) * BOT + (v & (BOT - 1))];
 }
 inline uint16_t median(const Pyramid& p, uint32_t target) noexcept {
-    auto acc = uint32_t{0};
+    auto acc = 0;
     auto t = 0;
     while (acc + p.top[t] <= target) acc += p.top[t++];
     auto b = 0;
