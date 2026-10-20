@@ -22,24 +22,24 @@ struct Pyramid {
     alignas(64) uint16_t mid[B1 * B2]{};
     alignas(64) uint16_t bot[B1 * B2 * B3]{};
 
-    uint16_t* mid_ptr(int i) noexcept { return mid + i * B2; }
-    uint16_t* bot_ptr(int i, int j) noexcept { return bot + (i * B2 + j) * B3; }
-    const uint16_t* mid_ptr(int i) const noexcept { return mid + i * B2; }
-    const uint16_t* bot_ptr(int i, int j) const noexcept { return bot + (i * B2 + j) * B3; }
+    auto mid_ptr(int i) noexcept { return mid + i * B2; }
+    auto bot_ptr(int i, int j) noexcept { return bot + (i * B2 + j) * B3; }
+    auto mid_ptr(int i) const noexcept { return mid + i * B2; }
+    auto bot_ptr(int i, int j) const noexcept { return bot + (i * B2 + j) * B3; }
 };
 
 inline void inc_pyramid(Pyramid& p, uint16_t v) noexcept {
-    const int b1 = v >> (S2 + S3);
-    const int b2 = (v >> S3) & (B2 - 1);
-    const int b3 = v & (B3 - 1);
+    const auto b1 = v >> (S2 + S3);
+    const auto b2 = (v >> S3) & (B2 - 1);
+    const auto b3 = v & (B3 - 1);
     ++p.top[b1];
     ++p.mid_ptr(b1)[b2];
     ++p.bot_ptr(b1, b2)[b3];
 }
 inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept {
-    const int b1 = v >> (S2 + S3);
-    const int b2 = (v >> S3) & (B2 - 1);
-    const int b3 = v & (B3 - 1);
+    const auto b1 = v >> (S2 + S3);
+    const auto b2 = (v >> S3) & (B2 - 1);
+    const auto b3 = v & (B3 - 1);
     --p.top[b1];
     --p.mid_ptr(b1)[b2];
     --p.bot_ptr(b1, b2)[b3];
@@ -47,19 +47,19 @@ inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept {
 
 inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
     uint32_t acc = 0;
-    const uint16_t* mbase = p.mid;
-    const uint16_t* bbase = p.bot;
+    const auto* mbase = p.mid;
+    const auto* bbase = p.bot;
 
     auto walk = [&](const uint16_t* b, int n) noexcept {
-        int i = 0;
+        auto i = 0;
         for (; i < n && (acc + b[i]) <= target; ++i) acc += b[i];
         return i;
     };
 
-    const int b1 = walk(p.top, B1);
-    const int b2 = walk(mbase + b1 * B2, B2);
-    const int b3 = walk(bbase + (b1 * B2 + b2) * B3, B3);
-    return uint16_t((b1 << (S2 + S3)) | (b2 << S3) | b3);
+    const auto b1 = walk(p.top, B1);
+    const auto b2 = walk(mbase + b1 * B2, B2);
+    const auto b3 = walk(bbase + (b1 * B2 + b2) * B3, B3);
+    return static_cast<uint16_t>((b1 << (S2 + S3)) | (b2 << S3) | b3);
 }
 
 // Forward declarations for the other paths (implementations as previously defined)
@@ -79,6 +79,7 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     assert((cols - 2 * edge) % 8 == 0);
     assert(cols <= 1024);
 
+    // large object first so smaller hot locals tend to sit higher on the stack
     Pyramid pyr;
     alignas(64) uint16_t tmp_row[1024];
 
@@ -87,8 +88,8 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     };
 
     // initial window
-    for (int dr = -radius; dr <= radius; ++dr)
-        for (int dc = -radius; dc <= radius; ++dc)
+    for (auto dr = -radius; dr <= radius; ++dr)
+        for (auto dc = -radius; dc <= radius; ++dc)
             inc_pyramid(pyr, pix(row_begin + dr, dc));
 
     const auto vert_edge = (row_begin < radius) || (row_end > rows - radius);
@@ -99,14 +100,14 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
 #elif defined(_MSC_VER)
 #pragma loop(ivdep)
 #endif
-        const int r0 = row - radius;
-        for (int dr = 0; dr <= 2 * radius; ++dr) {
+        const auto r0 = row - radius;
+        for (auto dr = 0; dr <= 2 * radius; ++dr) {
             dec_pyramid(pyr, src[r0 + dr][oc]);
             inc_pyramid(pyr, src[r0 + dr][nc]);
         }
     };
     auto slide_edge = [&](int row, int oc, int nc) {
-        for (int dr = -radius; dr <= radius; ++dr) {
+        for (auto dr = -radius; dr <= radius; ++dr) {
             dec_pyramid(pyr, pix(row + dr, oc));
             inc_pyramid(pyr, pix(row + dr, nc));
         }
@@ -118,15 +119,15 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
 #elif defined(_MSC_VER)
 #pragma loop(ivdep)
 #endif
-        const int r_old = row - radius;
-        const int r_new = row + radius + 1;
-        for (int c = 0; c < cols; ++c) {
+        const auto r_old = row - radius;
+        const auto r_new = row + radius + 1;
+        for (auto c = 0; c < cols; ++c) {
             dec_pyramid(pyr, src[r_old][c]);
             inc_pyramid(pyr, src[r_new][c]);
         }
     };
     auto vert_edge = [&](int row) {
-        for (int c = 0; c < cols; ++c) {
+        for (auto c = 0; c < cols; ++c) {
             dec_pyramid(pyr, pix(row - radius, c));
             inc_pyramid(pyr, pix(row + radius + 1, c));
         }
@@ -136,44 +137,44 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     for (auto row = row_begin; row < row_end; ++row) {
         const auto* __restrict srow = src[row];
         auto* __restrict drow = dst[row];
-        uint16_t* __restrict out = tmp_row;
+        auto* __restrict out = tmp_row;
         PREFETCH(src[std::min(row + 1, rows_1)]);
 
         const auto row_interior = (row >= radius && row + radius < rows);
 
         auto emit = [&](int col) {
-            out[col] = uint16_t(0x2000u + srow[col] - median_from_pyramid(pyr, target));
+            out[col] = static_cast<uint16_t>(0x2000u + srow[col] - median_from_pyramid(pyr, target));
         };
 
         if (dir > 0) {
-            int oc = -(radius + 1);
-            int nc = radius;
-            for (int col = 0; col < edge; ++col, ++oc, ++nc) {
+            auto oc = -(radius + 1);
+            auto nc = radius;
+            for (auto col = 0; col < edge; ++col, ++oc, ++nc) {
                 if (col > 0) slide_edge(row, oc, nc);
                 emit(col);
             }
-            for (int col = edge; col < cols - edge; ++col, ++oc, ++nc) {
+            for (auto col = edge; col < cols - edge; ++col, ++oc, ++nc) {
                 if (row_interior) slide_interior(row, oc, nc);
                 else              slide_edge(row, oc, nc);
                 emit(col);
             }
-            for (int col = cols - edge; col < cols; ++col, ++oc, ++nc) {
+            for (auto col = cols - edge; col < cols; ++col, ++oc, ++nc) {
                 slide_edge(row, oc, nc);
                 emit(col);
             }
         } else {
-            int oc = (cols - 1) + (radius + 1);
-            int nc = (cols - 1) - radius;
-            for (int col = cols - 1; col >= cols - edge; --col, --oc, --nc) {
+            auto oc = (cols - 1) + (radius + 1);
+            auto nc = (cols - 1) - radius;
+            for (auto col = cols - 1; col >= cols - edge; --col, --oc, --nc) {
                 if (col < cols - 1) slide_edge(row, oc, nc);
                 emit(col);
             }
-            for (int col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
+            for (auto col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
                 if (row_interior) slide_interior(row, oc, nc);
                 else              slide_edge(row, oc, nc);
                 emit(col);
             }
-            for (int col = edge - 1; col >= 0; --col, --oc, --nc) {
+            for (auto col = edge - 1; col >= 0; --col, --oc, --nc) {
                 slide_edge(row, oc, nc);
                 emit(col);
             }
