@@ -25,6 +25,10 @@
 
 constexpr int RADIUS_THRESHOLD = 32;
 
+// Change this one line to select the algorithm for throughput comparison.
+// 0 = column pyramids (when available), 1 = single pyramid, 2 = original
+constexpr int ALGO_SELECT = 0;
+
 namespace {
 
 constexpr int B1 = 32, B2 = 16, B3 = 32;
@@ -381,16 +385,19 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
     median_subtract14bit_original(src, ref, radius, row_begin, row_end);
 #endif
 
-    if (radius <= 64 && col_dispatch[radius])
-        col_dispatch[radius](src, dst, row_begin, row_end);
-    else if (radius <= 32)
+    if (ALGO_SELECT == 2) {
+        median_subtract14bit_original(src, dst, radius, row_begin, row_end);
+    } else if (ALGO_SELECT == 1) {
         median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
-    // else if (radius <= RADIUS_THRESHOLD)
-    //     median_subtract14bit_huang(src, dst, radius, row_begin, row_end);
-    // else
-    //     median_subtract14bit_multilevel(src, dst, radius, row_begin, row_end);
-    else
-        median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);  // fallback until others are implemented
+    } else {
+        // ALGO_SELECT == 0 (default): column path when available, else single pyramid
+        if (radius <= 64 && col_dispatch[radius])
+            col_dispatch[radius](src, dst, row_begin, row_end);
+        else if (radius <= 32)
+            median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
+        else
+            median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
+    }
 
 #if MEDIAN_VERIFY
     // Compare only the rows we just wrote
