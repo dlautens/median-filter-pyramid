@@ -48,11 +48,12 @@ inline void inc_pyramid(Pyramid& p, uint16_t v) noexcept { ++p.bins[v]; }
 inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept { --p.bins[v]; }
 inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
     uint32_t acc = 0;
-    for (int v = 0; v < 16384; ++v) {
+    int v = 0;
+    for (;;) {
         acc += p.bins[v];
         if (acc > target) return static_cast<uint16_t>(v);
+        ++v;
     }
-    return 0;
 }
 #elif PYRAMID_LEVELS == 2
 // 7/7 split: 128 top, 128 bot
@@ -78,13 +79,16 @@ inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept {
 }
 inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
     uint32_t acc = 0;
-    auto walk = [&](const uint16_t* b, int n) noexcept {
+    auto walk = [&](const uint16_t* b) noexcept {
         auto i = 0;
-        for (; i < n && (acc + b[i]) <= target; ++i) acc += b[i];
-        return i;
+        for (;;) {
+            if ((acc + b[i]) > target) return i;
+            acc += b[i];
+            ++i;
+        }
     };
-    const auto t = walk(p.top, T);
-    const auto b = walk(p.bot_ptr(t), BOT);
+    const auto t = walk(p.top);
+    const auto b = walk(p.bot_ptr(t));
     return static_cast<uint16_t>((t << SHIFT) | b);
 }
 #else
@@ -122,15 +126,18 @@ inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept 
     const auto* mbase = p.mid;
     const auto* bbase = p.bot;
 
-    auto walk = [&](const uint16_t* b, int n) noexcept {
+    auto walk = [&](const uint16_t* b) noexcept {
         auto i = 0;
-        for (; i < n && (acc + b[i]) <= target; ++i) acc += b[i];
-        return i;
+        for (;;) {
+            if ((acc + b[i]) > target) return i;
+            acc += b[i];
+            ++i;
+        }
     };
 
-    const auto b1 = walk(p.top, B1);
-    const auto b2 = walk(mbase + b1 * B2, B2);
-    const auto b3 = walk(bbase + (b1 * B2 + b2) * B3, B3);
+    const auto b1 = walk(p.top);
+    const auto b2 = walk(mbase + b1 * B2);
+    const auto b3 = walk(bbase + (b1 * B2 + b2) * B3);
     return static_cast<uint16_t>((b1 << (S2 + S3)) | (b2 << S3) | b3);
 }
 #endif
@@ -273,10 +280,16 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
                 if (col > 0) slide_edge(row, oc, nc);
                 emit(col);
             }
-            for (auto col = edge; col < cols - edge; ++col, ++oc, ++nc) {
-                if (row_interior) slide_interior(row, oc, nc);
-                else              slide_edge(row, oc, nc);
-                emit(col);
+            if (row_interior) {
+                for (auto col = edge; col < cols - edge; ++col, ++oc, ++nc) {
+                    slide_interior(row, oc, nc);
+                    emit(col);
+                }
+            } else {
+                for (auto col = edge; col < cols - edge; ++col, ++oc, ++nc) {
+                    slide_edge(row, oc, nc);
+                    emit(col);
+                }
             }
             for (auto col = cols - edge; col < cols; ++col, ++oc, ++nc) {
                 slide_edge(row, oc, nc);
@@ -289,10 +302,16 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
                 if (col < cols - 1) slide_edge(row, oc, nc);
                 emit(col);
             }
-            for (auto col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
-                if (row_interior) slide_interior(row, oc, nc);
-                else              slide_edge(row, oc, nc);
-                emit(col);
+            if (row_interior) {
+                for (auto col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
+                    slide_interior(row, oc, nc);
+                    emit(col);
+                }
+            } else {
+                for (auto col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
+                    slide_edge(row, oc, nc);
+                    emit(col);
+                }
             }
             for (auto col = edge - 1; col >= 0; --col, --oc, --nc) {
                 slide_edge(row, oc, nc);
