@@ -1,4 +1,4 @@
-// Set to 1 to verify column-pyramid results against the single-pyramid reference.
+// Set to 1 to verify results against the original sliding-histogram reference.
 // Set to 0 (or comment out) to disable all verification overhead.
 #ifndef MEDIAN_VERIFY
 #define MEDIAN_VERIFY 0
@@ -27,8 +27,8 @@
 constexpr int RADIUS_THRESHOLD = 32;
 
 // Change this one line to select the algorithm for throughput comparison.
-// 0 = column pyramids (when available), 1 = single pyramid, 2 = original
-constexpr int ALGO_SELECT = 0;
+// 1 = single pyramid, 2 = original
+constexpr int ALGO_SELECT = 1;
 
 // 1 = flat histogram, 2 = two-level, 3 = three-level
 constexpr int PYRAMID_LEVELS = 3;
@@ -133,46 +133,6 @@ inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept 
 }
 #endif
 
-#if PYRAMID_LEVELS == 3
-// Add/subtract one pyramid into another, touching only active bins
-// (only used by the column-pyramid path)
-inline void add_pyramid(Pyramid& dst, const Pyramid& src) noexcept {
-    for (int b1 = 0; b1 < B1; ++b1) {
-        if (!src.top[b1]) continue;
-        dst.top[b1] += src.top[b1];
-        const auto* sm = src.mid_ptr(b1);
-        auto* dm = dst.mid_ptr(b1);
-        for (int b2 = 0; b2 < B2; ++b2) {
-            if (!sm[b2]) continue;
-            dm[b2] += sm[b2];
-            const auto* sb = src.bot_ptr(b1, b2);
-            auto* db = dst.bot_ptr(b1, b2);
-            for (int b3 = 0; b3 < B3; ++b3)
-                if (sb[b3]) db[b3] += sb[b3];
-        }
-    }
-}
-inline void sub_pyramid(Pyramid& dst, const Pyramid& src) noexcept {
-    for (int b1 = 0; b1 < B1; ++b1) {
-        if (!src.top[b1]) continue;
-        dst.top[b1] -= src.top[b1];
-        const auto* sm = src.mid_ptr(b1);
-        auto* dm = dst.mid_ptr(b1);
-        for (int b2 = 0; b2 < B2; ++b2) {
-            if (!sm[b2]) continue;
-            dm[b2] -= sm[b2];
-            const auto* sb = src.bot_ptr(b1, b2);
-            auto* db = dst.bot_ptr(b1, b2);
-            for (int b3 = 0; b3 < B3; ++b3)
-                if (sb[b3]) db[b3] -= sb[b3];
-        }
-    }
-}
-#else
-inline void add_pyramid(Pyramid&, const Pyramid&) noexcept {}
-inline void sub_pyramid(Pyramid&, const Pyramid&) noexcept {}
-#endif
-
 // ---------- original-style sliding histogram (reference from starting images) ----------
 void median_subtract14bit_original(const Image<uint16_t>& src, Image<uint16_t>& dst,
                                    int radius, int row_begin, int row_end)
@@ -236,87 +196,6 @@ void median_subtract14bit_original(const Image<uint16_t>& src, Image<uint16_t>& 
         dir = -dir;
     }
 }
-
-// ---------- sliding-diameter column pyramids (templated) ----------
-template<int Radius>
-void median_subtract14bit_column_pyramids(const Image<uint16_t>& src, Image<uint16_t>& dst,
-                                         int row_begin, int row_end)
-{
-    constexpr int diam = 2 * Radius + 1;
-    const auto rows = src.rows(), cols = src.cols();
-    const auto rows_1 = rows - 1, cols_1 = cols - 1;
-    const auto target = static_cast<uint32_t>(diam) * diam / 2;
-
-    // Heap allocation: diam Pyramids are too large for the stack
-    auto col_pyr = std::make_unique<Pyramid[]>(diam);
-    Pyramid sum_pyr{};
-    int head = 0;
-
-    auto pix = [&](int r, int c) -> uint16_t {
-        return src[std::clamp(r, 0, rows_1)][std::clamp(c, 0, cols_1)];
-    };
-
-    auto at = [&](int logical) -> Pyramid& {
-        return col_pyr[(head + logical) % diam];
-    };
-
-    alignas(64) uint16_t tmp_row[1024];
-    assert(cols <= 1024);
-
-    for (auto row = row_begin; row < row_end; ++row) {
-        const auto* __restrict srow = src[row];
-        auto* __restrict out = tmp_row;
-        PREFETCH(src[std::min(row + 1, rows_1)]);
-
-        // ----- build the initial diam column pyramids for this row -----
-        head = 0;
-        std::memset(&sum_pyr, 0, sizeof(sum_pyr));
-        for (int i = 0; i < diam && i < cols; ++i) {
-            Pyramid& cp = col_pyr[i];
-            std::memset(&cp, 0, sizeof(cp));
-            for (int dr = -Radius; dr <= Radius; ++dr)
-                inc_pyramid(cp, pix(row + dr, i));
-            add_pyramid(sum_pyr, cp);
-        }
-
-        // ----- horizontal sweep -----
-        for (int col = 0; col < cols; ++col) {
-            out[col] = static_cast<uint16_t>(0x2000u + srow[col] - median_from_pyramid(sum_pyr, target));
-
-            if (col + diam < cols) {
-                // remove oldest column from sum
-                sub_pyramid(sum_pyr, at(0));
-
-                // advance head; the slot that just became free will hold the new column
-                head = (head + 1) % diam;
-
-                // build the column that is entering the window (column col+diam)
-                Pyramid& newest = at(diam - 1);
-                std::memset(&newest, 0, sizeof(newest));
-                for (int dr = -Radius; dr <= Radius; ++dr)
-                    inc_pyramid(newest, pix(row + dr, col + diam));
-                add_pyramid(sum_pyr, newest);
-            }
-        }
-
-        std::memcpy(dst[row], tmp_row, cols * sizeof(uint16_t));
-    }
-}
-
-// Dispatch table: non-null only for radii we choose to specialise
-using ColFn = void(*)(const Image<uint16_t>&, Image<uint16_t>&, int, int);
-static const ColFn col_dispatch[65] = {
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, // 0-7
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, // 8-15
-    median_subtract14bit_column_pyramids<16>,                      // 16
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, // 17-24
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,       // 25-31
-    median_subtract14bit_column_pyramids<32>,                      // 32
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, // 33-40
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, // 41-48
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, // 49-56
-    nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr  // 57-64
-};
 
 void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& dst,
                                   int radius, int row_begin, int row_end)
@@ -447,16 +326,8 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
 
     if (ALGO_SELECT == 2) {
         median_subtract14bit_original(src, dst, radius, row_begin, row_end);
-    } else if (ALGO_SELECT == 1) {
-        median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
     } else {
-        // ALGO_SELECT == 0 (default): column path when available, else single pyramid
-        if (radius <= 64 && col_dispatch[radius])
-            col_dispatch[radius](src, dst, row_begin, row_end);
-        else if (radius <= 32)
-            median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
-        else
-            median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
+        median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
     }
 
 #if MEDIAN_VERIFY
