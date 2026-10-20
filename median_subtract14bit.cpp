@@ -48,12 +48,11 @@ inline void inc_pyramid(Pyramid& p, uint16_t v) noexcept { ++p.bins[v]; }
 inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept { --p.bins[v]; }
 inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
     uint32_t acc = 0;
-    int v = 0;
-    for (;;) {
+    for (int v = 0; v < 16384; ++v) {
         acc += p.bins[v];
         if (acc > target) return static_cast<uint16_t>(v);
-        ++v;
     }
+    return 0;
 }
 #elif PYRAMID_LEVELS == 2
 // 7/7 split: 128 top, 128 bot
@@ -79,16 +78,16 @@ inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept {
 }
 inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
     uint32_t acc = 0;
-    auto walk = [&](const uint16_t* b) noexcept {
+    auto walk = [&](const uint16_t* b, int n) noexcept {
         auto i = 0;
-        for (;;) {
+        for (; i < n; ++i) {
             if ((acc + b[i]) > target) return i;
             acc += b[i];
-            ++i;
         }
+        return i;
     };
-    const auto t = walk(p.top);
-    const auto b = walk(p.bot_ptr(t));
+    const auto t = walk(p.top, T);
+    const auto b = walk(p.bot_ptr(t), BOT);
     return static_cast<uint16_t>((t << SHIFT) | b);
 }
 #else
@@ -126,18 +125,18 @@ inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept 
     const auto* mbase = p.mid;
     const auto* bbase = p.bot;
 
-    auto walk = [&](const uint16_t* b) noexcept {
+    auto walk = [&](const uint16_t* b, int n) noexcept {
         auto i = 0;
-        for (;;) {
+        for (; i < n; ++i) {
             if ((acc + b[i]) > target) return i;
             acc += b[i];
-            ++i;
         }
+        return i;
     };
 
-    const auto b1 = walk(p.top);
-    const auto b2 = walk(mbase + b1 * B2);
-    const auto b3 = walk(bbase + (b1 * B2 + b2) * B3);
+    const auto b1 = walk(p.top, B1);
+    const auto b2 = walk(mbase + b1 * B2, B2);
+    const auto b3 = walk(bbase + (b1 * B2 + b2) * B3, B3);
     return static_cast<uint16_t>((b1 << (S2 + S3)) | (b2 << S3) | b3);
 }
 #endif
