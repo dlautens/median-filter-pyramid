@@ -280,7 +280,7 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
         for (auto dc = -radius; dc <= radius; ++dc)
             inc_pyramid(pyr, pix(row_begin + dr, dc));
 
-    const auto vert_edge = (row_begin < radius) || (row_end > rows - radius);
+    const auto v_edge = (row_begin < radius) || (row_end > rows - radius);
 
     auto slide_interior = [&](int row, int oc, int nc) {
 #if defined(__GNUC__)
@@ -371,7 +371,7 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
         std::memcpy(drow, tmp_row, cols * sizeof(uint16_t));
 
         if (row + 1 < row_end) {
-            if (!vert_edge && row >= radius && row + radius + 1 < rows)
+            if (!v_edge && row >= radius && row + radius + 1 < rows)
                 vert_interior(row);
             else
                 vert_edge(row);
@@ -399,10 +399,12 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
         col_dispatch[radius](src, dst, row_begin, row_end);
     else if (radius <= 32)
         median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);
-    else if (radius <= RADIUS_THRESHOLD)
-        median_subtract14bit_huang(src, dst, radius, row_begin, row_end);
+    // else if (radius <= RADIUS_THRESHOLD)
+    //     median_subtract14bit_huang(src, dst, radius, row_begin, row_end);
+    // else
+    //     median_subtract14bit_multilevel(src, dst, radius, row_begin, row_end);
     else
-        median_subtract14bit_multilevel(src, dst, radius, row_begin, row_end);
+        median_subtract14bit_pyramid(src, dst, radius, row_begin, row_end);  // fallback until others are implemented
 
 #if MEDIAN_VERIFY
     // Compare only the rows we just wrote
