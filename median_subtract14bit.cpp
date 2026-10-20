@@ -119,7 +119,7 @@ void median_subtract14bit_original(const Image<uint16_t>& src, Image<uint16_t>& 
     const auto diam = 2 * radius + 1;
     const auto target = static_cast<uint32_t>(diam) * diam / 2;
 
-    // classic dense histogram (14-bit → 16384 bins). Slow but exact oracle.
+    // classic dense histogram (14-bit -> 16384 bins). Slow but exact oracle.
     std::vector<uint32_t> hist(16384, 0);
 
     auto pix = [&](int r, int c) -> uint16_t {
