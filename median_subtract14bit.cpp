@@ -283,12 +283,12 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     const auto v_edge = (row_begin < radius) || (row_end > rows - radius);
 
     auto slide_interior = [&](int row, int oc, int nc) {
+        const auto r0 = row - radius;
 #if defined(__GNUC__)
 #pragma GCC ivdep
 #elif defined(_MSC_VER)
 #pragma loop(ivdep)
 #endif
-        const auto r0 = row - radius;
         for (auto dr = 0; dr <= 2 * radius; ++dr) {
             dec_pyramid(pyr, src[r0 + dr][oc]);
             inc_pyramid(pyr, src[r0 + dr][nc]);
@@ -302,13 +302,13 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     };
 
     auto vert_interior = [&](int row) {
+        const auto r_old = row - radius;
+        const auto r_new = row + radius + 1;
 #if defined(__GNUC__)
 #pragma GCC ivdep
 #elif defined(_MSC_VER)
 #pragma loop(ivdep)
 #endif
-        const auto r_old = row - radius;
-        const auto r_new = row + radius + 1;
         for (auto c = 0; c < cols; ++c) {
             dec_pyramid(pyr, src[r_old][c]);
             inc_pyramid(pyr, src[r_new][c]);
