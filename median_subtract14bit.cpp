@@ -376,8 +376,6 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     }
 }
 
-} // namespace
-
 void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
                            int radius, int row_begin, int row_end)
 {
@@ -421,3 +419,5 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
                      radius, row_begin, row_end);
 #endif
 }
+
+} // namespace
