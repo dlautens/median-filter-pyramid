@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <vector>
 #include <cstdio>
 
@@ -182,7 +183,8 @@ void median_subtract14bit_column_pyramids(const Image<uint16_t>& src, Image<uint
     const auto rows_1 = rows - 1, cols_1 = cols - 1;
     const auto target = static_cast<uint32_t>(diam) * diam / 2;
 
-    Pyramid col_pyr[diam]{};          // circular buffer
+    // Heap allocation: diam Pyramids are too large for the stack
+    auto col_pyr = std::make_unique<Pyramid[]>(diam);
     Pyramid sum_pyr{};
     int head = 0;
 
@@ -280,11 +282,6 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
 
     auto slide_interior = [&](int row, int oc, int nc) {
         const auto r0 = row - radius;
-#if defined(__GNUC__)
-#pragma GCC ivdep
-#elif defined(_MSC_VER)
-#pragma loop(ivdep)
-#endif
         for (auto dr = 0; dr <= 2 * radius; ++dr) {
             dec_pyramid(pyr, src[r0 + dr][oc]);
             inc_pyramid(pyr, src[r0 + dr][nc]);
@@ -300,11 +297,6 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     auto vert_interior = [&](int row) {
         const auto r_old = row - radius;
         const auto r_new = row + radius + 1;
-#if defined(__GNUC__)
-#pragma GCC ivdep
-#elif defined(_MSC_VER)
-#pragma loop(ivdep)
-#endif
         for (auto c = 0; c < cols; ++c) {
             dec_pyramid(pyr, src[r_old][c]);
             inc_pyramid(pyr, src[r_new][c]);
