@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <memory>
 #include <vector>
 #include <cstdio>
@@ -402,20 +403,26 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
 #if MEDIAN_VERIFY
     // Compare only the rows we just wrote
     bool ok = true;
-    for (int r = row_begin; r < row_end && ok; ++r)
+    int fail_r = -1, fail_c = -1;
+    for (int r = row_begin; r < row_end; ++r)
         for (int c = 0; c < src.cols(); ++c)
             if (dst[r][c] != ref[r][c]) {
-                std::fprintf(stderr,
-                    "VERIFY fail r=%d c=%d radius=%d got=%u ref=%u\n",
-                    r, c, radius,
-                    static_cast<unsigned>(dst[r][c]),
-                    static_cast<unsigned>(ref[r][c]));
-                ok = false;
-                break;
+                if (ok) {  // record first failure
+                    fail_r = r;
+                    fail_c = c;
+                    ok = false;
+                }
             }
-    if (ok)
-        std::fprintf(stderr, "VERIFY ok radius=%d rows=[%d,%d)\n",
-                     radius, row_begin, row_end);
+    if (!ok) {
+        std::fprintf(stderr,
+            "VERIFY fail r=%d c=%d radius=%d got=%u ref=%u\n",
+            fail_r, fail_c, radius,
+            static_cast<unsigned>(dst[fail_r][fail_c]),
+            static_cast<unsigned>(ref[fail_r][fail_c]));
+        std::exit(1);  // exit immediately after full-image check
+    }
+    std::fprintf(stderr, "VERIFY ok radius=%d rows=[%d,%d)\n",
+                 radius, row_begin, row_end);
 #endif
 }
 
