@@ -30,11 +30,63 @@ constexpr int RADIUS_THRESHOLD = 32;
 // 0 = column pyramids (when available), 1 = single pyramid, 2 = original
 constexpr int ALGO_SELECT = 0;
 
+// 1 = flat histogram, 2 = two-level, 3 = three-level
+constexpr int PYRAMID_LEVELS = 3;
+
 namespace {
 
 constexpr int B1 = 32, B2 = 16, B3 = 32;
 constexpr int S2 = 4, S3 = 5;
 
+#if PYRAMID_LEVELS == 1
+struct Pyramid {
+    alignas(64) uint16_t bins[16384]{};
+};
+inline void inc_pyramid(Pyramid& p, uint16_t v) noexcept { ++p.bins[v]; }
+inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept { --p.bins[v]; }
+inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
+    uint32_t acc = 0;
+    for (int v = 0; v < 16384; ++v) {
+        acc += p.bins[v];
+        if (acc > target) return static_cast<uint16_t>(v);
+    }
+    return 0;
+}
+#elif PYRAMID_LEVELS == 2
+// 7/7 split: 128 top, 128 bot
+constexpr int T = 128, BOT = 128;
+constexpr int SHIFT = 7;
+struct Pyramid {
+    alignas(64) uint16_t top[T]{};
+    alignas(64) uint16_t bot[T * BOT]{};
+    auto bot_ptr(int i) noexcept { return bot + i * BOT; }
+    auto bot_ptr(int i) const noexcept { return bot + i * BOT; }
+};
+inline void inc_pyramid(Pyramid& p, uint16_t v) noexcept {
+    const auto t = v >> SHIFT;
+    const auto b = v & (BOT - 1);
+    ++p.top[t];
+    ++p.bot_ptr(t)[b];
+}
+inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept {
+    const auto t = v >> SHIFT;
+    const auto b = v & (BOT - 1);
+    --p.top[t];
+    --p.bot_ptr(t)[b];
+}
+inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
+    uint32_t acc = 0;
+    auto walk = [&](const uint16_t* b, int n) noexcept {
+        auto i = 0;
+        for (; i < n && (acc + b[i]) <= target; ++i) acc += b[i];
+        return i;
+    };
+    const auto t = walk(p.top, T);
+    const auto b = walk(p.bot_ptr(t), BOT);
+    return static_cast<uint16_t>((t << SHIFT) | b);
+}
+#else
+// 3-level (original 5-4-5)
 struct Pyramid {
     alignas(64) uint16_t top[B1]{};
     alignas(64) uint16_t mid[B1 * B2]{};
@@ -63,7 +115,27 @@ inline void dec_pyramid(Pyramid& p, uint16_t v) noexcept {
     --p.bot_ptr(b1, b2)[b3];
 }
 
+inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
+    uint32_t acc = 0;
+    const auto* mbase = p.mid;
+    const auto* bbase = p.bot;
+
+    auto walk = [&](const uint16_t* b, int n) noexcept {
+        auto i = 0;
+        for (; i < n && (acc + b[i]) <= target; ++i) acc += b[i];
+        return i;
+    };
+
+    const auto b1 = walk(p.top, B1);
+    const auto b2 = walk(mbase + b1 * B2, B2);
+    const auto b3 = walk(bbase + (b1 * B2 + b2) * B3, B3);
+    return static_cast<uint16_t>((b1 << (S2 + S3)) | (b2 << S3) | b3);
+}
+#endif
+
+#if PYRAMID_LEVELS == 3
 // Add/subtract one pyramid into another, touching only active bins
+// (only used by the column-pyramid path)
 inline void add_pyramid(Pyramid& dst, const Pyramid& src) noexcept {
     for (int b1 = 0; b1 < B1; ++b1) {
         if (!src.top[b1]) continue;
@@ -96,23 +168,10 @@ inline void sub_pyramid(Pyramid& dst, const Pyramid& src) noexcept {
         }
     }
 }
-
-inline uint16_t median_from_pyramid(const Pyramid& p, uint32_t target) noexcept {
-    uint32_t acc = 0;
-    const auto* mbase = p.mid;
-    const auto* bbase = p.bot;
-
-    auto walk = [&](const uint16_t* b, int n) noexcept {
-        auto i = 0;
-        for (; i < n && (acc + b[i]) <= target; ++i) acc += b[i];
-        return i;
-    };
-
-    const auto b1 = walk(p.top, B1);
-    const auto b2 = walk(mbase + b1 * B2, B2);
-    const auto b3 = walk(bbase + (b1 * B2 + b2) * B3, B3);
-    return static_cast<uint16_t>((b1 << (S2 + S3)) | (b2 << S3) | b3);
-}
+#else
+inline void add_pyramid(Pyramid&, const Pyramid&) noexcept {}
+inline void sub_pyramid(Pyramid&, const Pyramid&) noexcept {}
+#endif
 
 // ---------- original-style sliding histogram (reference from starting images) ----------
 void median_subtract14bit_original(const Image<uint16_t>& src, Image<uint16_t>& dst,
