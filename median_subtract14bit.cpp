@@ -258,13 +258,12 @@ void median_subtract14bit_pyramid(const Image<uint16_t>& src, Image<uint16_t>& d
     for (auto row = row_begin; row < row_end; ++row) {
         const auto* __restrict srow = src[row];
         auto* __restrict drow = dst[row];
-        auto* __restrict out = tmp_row;
         PREFETCH(src[std::min(row + 1, rows_1)]);
 
         const auto row_interior = (row >= radius && row + radius < rows);
 
         auto emit = [&](int col) {
-            out[col] = static_cast<uint16_t>(0x2000u + srow[col] - median_from_pyramid(pyr, target));
+            tmp_row[col] = static_cast<uint16_t>(0x2000u + srow[col] - median_from_pyramid(pyr, target));
         };
 
         if (dir > 0) {
