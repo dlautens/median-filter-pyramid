@@ -69,9 +69,10 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
 
     auto slide_interior = [&](int row, int oc, int nc) {
         const auto r0 = row - radius;
-        for (auto dr = 0; dr < diam; ++dr) {
-            pyr.dec(src[r0 + dr][oc]);
-            pyr.inc(src[r0 + dr][nc]);
+        const auto r1 = r0 + diam;
+        for (auto r = r0; r < r1; ++r) {
+            pyr.dec(src[r][oc]);
+            pyr.inc(src[r][nc]);
         }
     };
     auto slide_edge = [&](int row, int oc, int nc) {
