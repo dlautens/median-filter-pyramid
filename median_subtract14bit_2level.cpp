@@ -15,6 +15,7 @@ namespace {
 
 constexpr int SHIFT = 7;
 constexpr int TOP = 128, BOT = 128;
+constexpr int MAX_COLS = 1024;
 
 struct Pyramid {
     alignas(64) uint16_t top[TOP]{};
@@ -53,10 +54,10 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
 
     assert(edge >= radius && edge % 8 == 0);
     assert((cols - 2 * edge) % 8 == 0);
-    assert(cols <= 1024);
+    assert(cols <= MAX_COLS);
 
     Pyramid pyr;
-    alignas(64) uint16_t tmp_row[1024];
+    alignas(64) uint16_t tmp_row[MAX_COLS];
 
     auto pix = [&](int r, int c) -> uint16_t {
         return src[std::clamp(r, 0, rows_1)][std::clamp(c, 0, cols_1)];
