@@ -106,8 +106,9 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
         if (dir > 0) {
             auto oc = -(radius + 1), nc = radius;
             if (use_interior) {
-                for (auto col = 0; col < edge; ++col, ++oc, ++nc) {
-                    if (col > 0) slide_edge(row, oc, nc);
+                emit(0); ++oc; ++nc;
+                for (auto col = 1; col < edge; ++col, ++oc, ++nc) {
+                    slide_edge(row, oc, nc);
                     emit(col);
                 }
                 for (auto col = edge; col < cols - edge; ++col, ++oc, ++nc) {
@@ -119,16 +120,18 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
                     emit(col);
                 }
             } else {
-                for (auto col = 0; col < cols; ++col, ++oc, ++nc) {
-                    if (col > 0) slide_edge(row, oc, nc);
+                emit(0); ++oc; ++nc;
+                for (auto col = 1; col < cols; ++col, ++oc, ++nc) {
+                    slide_edge(row, oc, nc);
                     emit(col);
                 }
             }
         } else {
             auto oc = (cols - 1) + (radius + 1), nc = (cols - 1) - radius;
             if (use_interior) {
-                for (auto col = cols - 1; col >= cols - edge; --col, --oc, --nc) {
-                    if (col < cols - 1) slide_edge(row, oc, nc);
+                emit(cols - 1); --oc; --nc;
+                for (auto col = cols - 2; col >= cols - edge; --col, --oc, --nc) {
+                    slide_edge(row, oc, nc);
                     emit(col);
                 }
                 for (auto col = cols - edge - 1; col >= edge; --col, --oc, --nc) {
@@ -140,8 +143,9 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
                     emit(col);
                 }
             } else {
-                for (auto col = cols - 1; col >= 0; --col, --oc, --nc) {
-                    if (col < cols - 1) slide_edge(row, oc, nc);
+                emit(cols - 1); --oc; --nc;
+                for (auto col = cols - 2; col >= 0; --col, --oc, --nc) {
+                    slide_edge(row, oc, nc);
                     emit(col);
                 }
             }
