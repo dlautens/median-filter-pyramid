@@ -31,11 +31,12 @@ struct Pyramid {
     uint16_t median(uint32_t target) const noexcept {
         auto acc = 0;
         auto t = 0;
-        while (acc + top[t] <= target) acc += top[t++];
+        do { acc += top[t++]; } while (acc <= target);
+        acc -= top[--t];
         auto b = 0;
         const auto* bp = bot + t * BOT;
-        while (acc + bp[b] <= target) acc += bp[b++];
-        return static_cast<uint16_t>((t << SHIFT) | b);
+        do { acc += bp[b++]; } while (acc <= target);
+        return static_cast<uint16_t>((t << SHIFT) | (--b));
     }
 };
 
