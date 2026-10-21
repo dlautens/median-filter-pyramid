@@ -29,10 +29,9 @@ struct Pyramid {
         --bot[v];
     }
     uint16_t median(uint32_t target) const noexcept {
-        auto acc = 0, t = 0;
+        auto acc = 0, t = 0, b = 0;
         do { acc += top[t++]; } while (acc <= target);
         acc -= top[--t];
-        auto b = 0;
         const auto* bp = bot + t * BOT;
         do { acc += bp[b++]; } while (acc <= target);
         return static_cast<uint16_t>((t << SHIFT) | (--b));
