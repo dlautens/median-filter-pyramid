@@ -19,25 +19,25 @@ constexpr int TOP = 128, BOT = 128;
 struct Pyramid {
     alignas(64) uint16_t top[TOP]{};
     alignas(64) uint16_t bot[TOP * BOT]{};
-};
 
-inline void inc(Pyramid& p, uint16_t v) noexcept {
-    ++p.top[v >> SHIFT];
-    ++p.bot[(v >> SHIFT) * BOT + (v & (BOT - 1))];
-}
-inline void dec(Pyramid& p, uint16_t v) noexcept {
-    --p.top[v >> SHIFT];
-    --p.bot[(v >> SHIFT) * BOT + (v & (BOT - 1))];
-}
-inline uint16_t median(const Pyramid& p, uint32_t target) noexcept {
-    auto acc = 0;
-    auto t = 0;
-    while (acc + p.top[t] <= target) acc += p.top[t++];
-    auto b = 0;
-    const auto* bp = p.bot + t * BOT;
-    while (acc + bp[b] <= target) acc += bp[b++];
-    return static_cast<uint16_t>((t << SHIFT) | b);
-}
+    void inc(uint16_t v) noexcept {
+        ++top[v >> SHIFT];
+        ++bot[(v >> SHIFT) * BOT + (v & (BOT - 1))];
+    }
+    void dec(uint16_t v) noexcept {
+        --top[v >> SHIFT];
+        --bot[(v >> SHIFT) * BOT + (v & (BOT - 1))];
+    }
+    uint16_t median(uint32_t target) const noexcept {
+        auto acc = 0;
+        auto t = 0;
+        while (acc + top[t] <= target) acc += top[t++];
+        auto b = 0;
+        const auto* bp = bot + t * BOT;
+        while (acc + bp[b] <= target) acc += bp[b++];
+        return static_cast<uint16_t>((t << SHIFT) | b);
+    }
+};
 
 void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
                            int radius, int row_begin, int row_end)
@@ -65,19 +65,19 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
 
     for (auto dr = -radius; dr <= radius; ++dr)
         for (auto dc = -radius; dc <= radius; ++dc)
-            inc(pyr, pix(row_begin + dr, dc));
+            pyr.inc(pix(row_begin + dr, dc));
 
     auto slide_interior = [&](int row, int oc, int nc) {
         const auto r0 = row - radius;
         for (auto dr = 0; dr < diam; ++dr) {
-            dec(pyr, src[r0 + dr][oc]);
-            inc(pyr, src[r0 + dr][nc]);
+            pyr.dec(src[r0 + dr][oc]);
+            pyr.inc(src[r0 + dr][nc]);
         }
     };
     auto slide_edge = [&](int row, int oc, int nc) {
         for (auto dr = -radius; dr <= radius; ++dr) {
-            dec(pyr, pix(row + dr, oc));
-            inc(pyr, pix(row + dr, nc));
+            pyr.dec(pix(row + dr, oc));
+            pyr.inc(pix(row + dr, nc));
         }
     };
     auto vert = [&](int row, int c0, int c1) {
@@ -85,13 +85,13 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
             const auto r_old = row - radius, r_new = row + radius + 1;
             for (auto c = c0; c <= c1; ++c) {
                 const auto cc = std::clamp(c, 0, cols_1);
-                dec(pyr, src[r_old][cc]);
-                inc(pyr, src[r_new][cc]);
+                pyr.dec(src[r_old][cc]);
+                pyr.inc(src[r_new][cc]);
             }
         } else {
             for (auto c = c0; c <= c1; ++c) {
-                dec(pyr, pix(row - radius, c));
-                inc(pyr, pix(row + radius + 1, c));
+                pyr.dec(pix(row - radius, c));
+                pyr.inc(pix(row + radius + 1, c));
             }
         }
     };
@@ -105,7 +105,7 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
         const auto use_interior = row_interior && (2 * edge < cols);
 
         auto emit = [&](int col) {
-            tmp_row[col] = static_cast<uint16_t>(0x2000u + srow[col] - median(pyr, target));
+            tmp_row[col] = static_cast<uint16_t>(0x2000u + srow[col] - pyr.median(target));
         };
 
         if (dir > 0) {
