@@ -82,18 +82,12 @@ void median_subtract14bit(const Image<uint16_t>& src, Image<uint16_t>& dst,
         }
     };
     auto vert = [&](int row, int c0, int c1) {
-        if (row >= radius && row + radius + 1 < rows) {
-            const auto r_old = row - radius, r_new = row + radius + 1;
-            for (auto c = c0; c <= c1; ++c) {
-                const auto cc = std::clamp(c, 0, cols_1);
-                pyr.dec(src[r_old][cc]);
-                pyr.inc(src[r_new][cc]);
-            }
-        } else {
-            for (auto c = c0; c <= c1; ++c) {
-                pyr.dec(pix(row - radius, c));
-                pyr.inc(pix(row + radius + 1, c));
-            }
+        const auto r_old = std::clamp(row - radius, 0, rows_1);
+        const auto r_new = std::clamp(row + radius + 1, 0, rows_1);
+        for (auto c = c0; c <= c1; ++c) {
+            const auto cc = std::clamp(c, 0, cols_1);
+            pyr.dec(src[r_old][cc]);
+            pyr.inc(src[r_new][cc]);
         }
     };
 
