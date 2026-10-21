@@ -22,11 +22,11 @@ struct Pyramid {
 
     void inc(uint16_t v) noexcept {
         ++top[v >> SHIFT];
-        ++bot[(v >> SHIFT) * BOT + (v & (BOT - 1))];
+        ++bot[v];
     }
     void dec(uint16_t v) noexcept {
         --top[v >> SHIFT];
-        --bot[(v >> SHIFT) * BOT + (v & (BOT - 1))];
+        --bot[v];
     }
     uint16_t median(uint32_t target) const noexcept {
         auto acc = 0;
